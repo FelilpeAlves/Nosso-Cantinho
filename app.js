@@ -201,7 +201,7 @@
     return `<article class="task-card ${done ? 'is-done' : ''}" data-task-card="${escapeHTML(task.id)}">
       <div class="category-art"><img src="${image}" alt="" loading="lazy"></div>
       <div class="task-body"><h3>${escapeHTML(task.title)}</h3><div class="task-detail">Responsável: <strong>${escapeHTML(task.owner)}</strong><br>${escapeHTML(FREQUENCIES[task.frequency])}</div><span class="task-status ${done ? 'done' : ''}">${done ? '✓ Concluída' : '◷ Pendente'}</span>
-      ${currentPage === 'tasks' ? `<div class="task-menu"><button type="button" class="tiny-action" data-action="edit" data-id="${escapeHTML(task.id)}">✎ Editar</button><button type="button" class="tiny-action" data-action="delete" data-id="${escapeHTML(task.id)}">Excluir</button></div>` : ''}
+      <div class="task-menu" aria-label="Gerenciar tarefa"><button type="button" class="tiny-action" data-action="edit" data-id="${escapeHTML(task.id)}" aria-label="Editar tarefa: ${escapeHTML(task.title)}">✎ Editar</button><button type="button" class="tiny-action tiny-action-danger" data-action="delete" data-id="${escapeHTML(task.id)}" aria-label="Excluir tarefa: ${escapeHTML(task.title)}">🗑 Excluir</button></div>
       </div><div class="task-controls"><button type="button" class="button ${done ? 'button-sage' : 'button-primary'}" data-action="toggle" data-id="${escapeHTML(task.id)}">${done ? '↶ Desfazer' : `${icon('check')} Concluir`}</button>${done ? `<button class="button button-outline" type="button" data-action="thank" data-id="${escapeHTML(task.id)}">♡ Agradecer</button>` : ''}</div>
     </article>`;
   }
@@ -329,6 +329,7 @@
       case 'delete':
         if (window.confirm(`Excluir a tarefa “${task.title}”?`)) {
           state.tasks = state.tasks.filter((t) => t.id !== task.id);
+          if ($('taskId').value === task.id) resetForm();
           update(); toast('Tarefa excluída.');
         }
         break;
