@@ -1,62 +1,66 @@
 # Nosso Cantinho ♡
 
-Aplicativo web instalável (PWA) para Felipe e Aline organizarem tarefas de casa. Design pêssego/terracota com ilustrações dos cômodos, carinho e navegação mobile-first.
+Aplicativo de tarefas da casa para **Felipe e Aline**. Instalável como aplicativo no Android e no iPhone, com um visual aconchegante, tarefas por cômodo, recorrência, agradecimentos, backup e **sincronização opcional em tempo real entre os dois celulares**.
 
-## Recursos disponíveis
+## O que funciona agora
 
-- Adicionar, editar, excluir, concluir e desfazer tarefas.
-- Atribuir tarefas a Felipe ou Aline, escolher cômodo e periodicidade (única, diária, semanal).
-- Filtros de tarefas e destaque da última conclusão.
-- Mural de agradecimentos e compartilhamento **manual** de uma mensagem por WhatsApp.
-- Exportação e importação de backups JSON.
-- Salvamento local no navegador (`localStorage`) e uso offline após a primeira visita online, por PWA/service worker.
-- Layout adaptado a telas pequenas, teclado e preferência de movimento reduzido.
+- Modo local sem login e sem cadastro: as tarefas continuam salvas no próprio aparelho.
+- Modo compartilhado com login individual e Firestore: quando um de vocês acrescenta, edita, apaga ou conclui uma tarefa, o outro vê a atualização automaticamente **enquanto estiver conectado**.
+- Mensagens de agradecimento aparecem no mural de ambos.
+- Atualizações que chegam com o aplicativo aberto exibem avisos. Com permissão e navegador compatível, pode haver aviso local enquanto o aplicativo ainda está em execução em segundo plano.
+- Tarefas antigas **não são apagadas** ao entrar na casa compartilhada. O botão de importação permite adicioná-las conscientemente.
 
-**IMPORTANTE — versão local:** cada aparelho guarda sua própria lista. Ainda **não existe sincronização em tempo real entre os celulares**, nem push automático no celular do outro. Para isso será necessário configurar um serviço com autenticação, banco de dados e notificações. Não coloque dados sensíveis reais no app até essa etapa ser revisada.
+**Ainda não implementado:** mensagens automáticas pelo WhatsApp ou notificações push confiáveis com o aplicativo completamente fechado. Para isso, será necessário configurar um serviço de envio no servidor (e, para o WhatsApp, usar uma integração oficial com seus custos/regras).
 
-## Publicar no GitHub Pages
+## Como ativar a sincronização (uma vez só)
 
-1. Abra **Settings → Pages** no repositório `FelilpeAlves/Nosso-Cantinho`.
-2. Em **Build and deployment**, selecione **Deploy from a branch**.
-3. Em **Branch**, escolha `main` e a pasta `/ (root)` e clique em **Save**.
-4. Aguarde a publicação. O endereço esperado será `https://felilpealves.github.io/Nosso-Cantinho/` (confirme pelo link exibido no GitHub Pages).
-5. Android/Chrome: menu `⋮` → **Instalar app** ou **Adicionar à tela inicial**. iPhone/Safari: Compartilhar → **Adicionar à Tela de Início**.
+**Passo 1.** Abra [console.firebase.google.com](https://console.firebase.google.com/) e crie um projeto Firebase. No plano Spark, o uso pequeno costuma caber nas cotas gratuitas; confirme os limites atuais no console. Não é necessário comprar Lovable.
 
-> Atenção: abrir o HTML dentro do visualizador do chat pode bloquear scripts ou armazenamento. Teste pelo link real do Pages.
+**Passo 2.** Em **Build > Authentication > Sign-in method**, habilite **E-mail/Senha**. Em **Settings > Authorized domains**, adicione `felilpealves.github.io` se ele ainda não estiver listado.
 
-## Como executar localmente
+**Passo 3.** Em **Build > Firestore Database**, crie um banco. Na aba **Rules**, substitua as regras pelas do arquivo [`firestore.rules`](./firestore.rules), publique e confira que não está em *test mode* permitindo acesso de qualquer pessoa. As regras permitem somente membros da casa ler e alterar suas tarefas; entrada de novo membro exige aprovação do dono.
 
-Na pasta do projeto, use:
+**Passo 4.** Em **Configurações do projeto > Seus apps**, registre um **app Web** (`</>`). Copie apenas os dados públicos `apiKey`, `authDomain`, `projectId` e `appId` para [`firebase-config.js`](./firebase-config.js) e publique o commit. **Não envie senha da conta, chave privada de serviço nem arquivo JSON de conta de serviço**. A configuração Web não é uma senha: a segurança é garantida pelas regras do Firestore e pelo login.
+
+**Passo 5.** Abra o site [Nosso Cantinho](https://felilpealves.github.io/Nosso-Cantinho/), vá em **Nós > Compartilhar tarefas entre celulares**. Felipe cria a conta e a casa, copia o código e o envia em privado à Aline. Aline cria uma conta com outro e-mail, digita o código e pede acesso. Felipe aprova o e-mail dela em **Nós**. Pronto: ambos veem a **mesma lista**, inclusive pendentes e concluídas.
+
+**Passo 6.** Se desejar trazer tarefas que já estavam cadastradas antes, no celular que tem a lista completa, toque em **Adicionar minhas tarefas locais à casa**. Isso adiciona as tarefas em vez de substituir as tarefas atuais. Faça backup antes por garantia.
+
+## Organização do projeto
+
+```
+index.html            Interface e telas
+styles.css            Layout responsivo
+app.js                Gestão das tarefas, rotinas, mensagens e modo local
+cloud.js              Contas, aprovação e sincronização Firestore
+firebase-config.js    Configuração pública do app Web (inicialmente vazia)
+firestore.rules        Regras para proteger dados e aprovação de contas
+sw.js                 Cache do PWA
+manifest.webmanifest  Identidade instalável do PWA
+assets/               Ilustrações e ícones
+ tests/               Testes automatizados
+```
+
+## Segurança e privacidade
+
+- Ninguém entra numa casa só porque sabe o código; **o dono precisa aprovar a conta**.
+- Só os membros da casa podem ler e editar seus documentos do Firestore, se as regras publicadas estiverem corretas.
+- O GitHub Pages publica o código do site, mas **não guarda as senhas**. O login é processado pelo Firebase Authentication.
+- Não deixe o Firestore em modo de teste nem com regras globais do tipo `allow read, write: if true`.
+- O acesso à casa é limitado a duas contas; **não compartilhe o código publicamente**.
+- Sem Firebase configurado o app permanece em modo local, sem sincronização, e avisa isso na aba **Nós**.
+
+## Publicação
+
+GitHub Pages: **Settings > Pages > Deploy from a branch > main > / (root)**. Aguarde a publicação. O aplicativo instalado recebe atualizações do PWA sem precisar desinstalar. Não limpe o armazenamento do site antes de fazer backup.
+
+## Testes
 
 ```bash
-python -m http.server 8000
+node --check app.js
+node --check cloud.js
+node tests/mobile_delete_test.cjs
+node tests/sync_sanity_test.cjs
 ```
 
-Abra `http://localhost:8000` no navegador. Não precisa de NPM, conta paga ou configuração de servidor.
-
-## Estrutura
-
-```text
-index.html                Interface e acessibilidade
-styles.css                Visual e responsividade
-app.js                    Tarefas, rotina, carinho e backup
-manifest.webmanifest      Instalação como app
-sw.js                     Cache offline
-assets/                   Ícones e ilustrações SVG/PNG
-README.md                 Manual de uso e deploy
-```
-
-## Dados e privacidade
-
-- As informações são armazenadas com a chave `nosso-cantinho-v4` no `localStorage` do dispositivo.
-- Backups são arquivos `.json` gerados no próprio aparelho. Evite compartilhar esse arquivo se contiver dados pessoais.
-- O app não coleta telemetria, não envia tarefas a serviços externos e não exige login.
-- Ao apagar os dados do navegador, os dados do app podem ser perdidos, a menos que haja backup.
-- O botão WhatsApp abre uma mensagem preparada para você escolher o destinatário e enviar. **Não envia sozinho**.
-
-## Evoluções planejadas
-
-- Login separado por pessoa e banco compartilhado (Supabase/Firebase, com regras de acesso).
-- Sincronização das tarefas e dos agradecimentos entre os aparelhos.
-- Notificações push autorizadas por cada usuário, usando backend e push service.
-- Testes de segurança e de permissões antes de liberar recursos compartilhados.
+Para testes visuais, rode um servidor HTTP no diretório e execute `python tests/smoke_test.py` em um ambiente que permita abrir um Chromium local.

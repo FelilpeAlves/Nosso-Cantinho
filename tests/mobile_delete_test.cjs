@@ -1,4 +1,4 @@
-// Regressão: excluir tarefas precisa funcionar desde a tela inicial no celular.
+// Regressão: o celular deve permitir excluir desde a tela inicial.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -18,7 +18,7 @@ assert.match(read('styles.css'), /min-height:42px/);
 const state = {tasks: [task]};
 let saved = 0;
 const env = {state, window: {confirm: () => false}, $: () => ({value: ''}),
-  resetForm: () => {}, update: () => {saved++;}, toast: () => {}};
+  resetForm: () => {}, cloudWrite: () => {}, update: () => {saved++;}, toast: () => {}};
 const onClick = vm.runInNewContext('(' + block('onClick','exportBackup') + ')', env);
 const event = {target: {closest: () => ({dataset: {action: 'delete', id: 't1'}})}};
 onClick(event);

@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function homePath(homeId) {
+      return /databases/$(database)/documents/homes/$(homeId);
+    }
+    function isMember(homeId) {
+      return signedIn() && exists(homePath(homeId)) &&
+        request.auth.uid in get(homePath(homeId)).data.members;
+    }
+    function isOwner(homeId) {
+      return signedIn() && exists(homePath(homeId)) &&
+        get(homePath(homeId)).data.ownerUid == request.auth.uid;
+    }
+
+    match /homes/{homeId} {
+      allow get: if isMember(homeId);
+      allow list: if false;
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasOnly(['ownerUid','ownerName','members','createdAt','title']) &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.ownerName in ['Felipe','Aline'] &&
+        request.resource.data.members == [request.auth.uid] &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() <= 70;
+      allow update: if isOwner(homeId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']) &&
+        request.resource.data.members is list &&
+        request.resource.data.members.size() <= 2 &&
+        request.resource.data.members.hasAll(resource.data.members) &&
+        request.resource.data.members.size() > resource.data.members.size();
+      allow delete: if false;
+
+      match /requests/{userId} {
+        allow get: if signedIn() && (request.auth.uid == userId || isOwner(homeId));
+        allow list: if isOwner(homeId);
+        allow create: if signedIn() && exists(homePath(homeId)) &&
+          request.auth.uid == userId &&
+          request.resource.data.keys().hasOnly(['uid','email','status','requestedAt']) &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.email == request.auth.token.email &&
+          request.resource.data.status == 'pending';
+        allow update: if isOwner(homeId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+          resource.data.status == 'pending' && request.resource.data.status == 'approved';
+        allow delete: if isOwner(homeId);
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isMember(homeId);
+        allow create, update: if isMember(homeId) &&
+          request.resource.data.keys().hasOnly([
+            'id','title','category','owner','frequency','done','lastDone',
+            'completedBy','createdAt','updatedAt'
+          ]) && request.resource.data.id == taskId &&
+          request.resource.data.title is string &&
+          request.resource.data.title.size() > 0 &&
+          request.resource.data.title.size() <= 90 &&
+          request.resource.data.owner in ['Felipe','Aline'] &&
+          request.resource.data.category in ['cozinha','banheiro','roupas','sala','quarto','geral'] &&
+          request.resource.data.frequency in ['once','daily','weekly'];
+        allow delete: if isMember(homeId);
+      }
+      match /messages/{messageId} {
+        allow read: if isMember(homeId);
+        allow create, update: if isMember(homeId) &&
+          request.resource.data.keys().hasOnly(['id','taskId','task','author','to','text','at','updatedAt']) &&
+          request.resource.data.id == messageId &&
+          request.resource.data.text is string &&
+          request.resource.data.text.size() <= 300 &&
+          request.resource.data.author in ['Felipe','Aline'] &&
+          request.resource.data.to in ['Felipe','Aline'];
+        allow delete: if isMember(homeId);
+      }
+    }
+  }
+}

@@ -1,6 +1,4 @@
-/* Nosso Cantinho — aplicativo local e sem dependências externas.
- * Atenção: este armazenamento não sincroniza dois aparelhos.
- */
+/* Nosso Cantinho — tarefas locais ou compartilhadas via Firebase opcional. */
 (() => {
   'use strict';
   const VERSION = 4;
@@ -26,6 +24,7 @@
   let gratitudeTaskId = null;
   let storageAvailable = true;
   let toastTimer;
+  let cloudMode = false;
 
   function escapeHTML(value) {
     return String(value ?? '').replace(/[&<>"']/g, (character) => ({
@@ -131,7 +130,17 @@
     persist();
   }
   function persist() {
-    return safeWrite(STORAGE_KEY, JSON.stringify(state));
+    // Nunca substituímos a lista local quando a casa compartilhada está ligada.
+    return cloudMode ? true : safeWrite(STORAGE_KEY, JSON.stringify(state));
+  }
+  function cloudWrite(method, object) {
+    if (!cloudMode) return;
+    const cloud = window.NossoCantinhoCloud;
+    if (!cloud?.active) { toast('Sincronização não está pronta. Tente novamente.'); return; }
+    Promise.resolve(cloud[method](object)).catch((error) => {
+      console.error('Não foi possível sincronizar alteração:', error);
+      toast('Não foi possível sincronizar. Confira sua internet.');
+    });
   }
   function toast(text) {
     const el = $('toast');
@@ -273,6 +282,8 @@
       state.tasks.unshift({id: uid(), ...values, done: false, lastDone: null, completedBy: null, createdAt: new Date().toISOString()});
       toast('Tarefa adicionada com carinho! ♡');
     }
+    const changed = existing || state.tasks[0];
+    cloudWrite('putTask', {...changed});
     resetForm();
     update();
   }
@@ -288,6 +299,7 @@
       task.completedBy = currentPerson;
       toast(`Boa! ${currentPerson} concluiu ${task.title} 🎉`);
     }
+    cloudWrite('putTask', {...task});
     update();
   }
   function askThanks(task) {
@@ -302,7 +314,9 @@
     }
   }
   function saveThanks(task, text) {
-    state.messages.unshift({id: uid(), taskId: task.id, task: task.title, author: currentPerson, to: task.completedBy || task.owner, text: text.slice(0, 300), at: new Date().toISOString()});
+    const message = {id: uid(), taskId: task.id, task: task.title, author: currentPerson, to: task.completedBy || task.owner, text: text.slice(0, 300), at: new Date().toISOString()};
+    state.messages.unshift(message);
+    cloudWrite('putMessage', {...message});
     toast('Carinho guardado no mural! 💗');
     update();
   }
@@ -329,6 +343,7 @@
       case 'delete':
         if (window.confirm(`Excluir a tarefa “${task.title}”?`)) {
           state.tasks = state.tasks.filter((t) => t.id !== task.id);
+          cloudWrite('deleteTask', task.id);
           if ($('taskId').value === task.id) resetForm();
           update(); toast('Tarefa excluída.');
         }
@@ -357,13 +372,59 @@
       if (file.size > 2_000_000) throw new Error('Arquivo muito grande');
       const loaded = validateState(JSON.parse(await file.text()));
       if (!loaded) throw new Error('Dados inválidos');
-      if (window.confirm('Importar este backup vai substituir as tarefas e mensagens salvas neste aparelho. Continuar?')) {
-        state = loaded; update(); resetForm(); toast('Backup importado com sucesso! ♡');
+      if (window.confirm(cloudMode
+        ? 'Adicionar as tarefas e mensagens deste backup à casa compartilhada? Os itens atuais serão mantidos, exceto os que tiverem o mesmo identificador.'
+        : 'Importar este backup vai substituir as tarefas e mensagens salvas neste aparelho. Continuar?')) {
+        if (cloudMode) {
+          await window.NossoCantinhoCloud.importState(loaded);
+          toast('Backup adicionado às tarefas compartilhadas! ♡');
+        } else {
+          state = loaded; update(); resetForm(); toast('Backup importado com sucesso! ♡');
+        }
       }
     } catch (error) {
       console.warn(error);
       window.alert('Não foi possível importar. Escolha um backup JSON do Nosso Cantinho.');
     } finally { input.value = ''; }
+  }
+  function notifyPartner(title, body) {
+    toast(body);
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted' || !document.hidden) return;
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) =>
+        registration.showNotification(title, {body, icon:'./assets/icon-192.png', tag:'nosso-cantinho-atualizacao'})
+      ).catch((error) => console.warn('Notificação não disponível:',error));
+    }
+  }
+  function receiveCloudState(raw, options = {}) {
+    const priorTasks = cloudMode ? new Map(state.tasks.map((task) => [task.id,task])) : new Map();
+    const priorMessages = cloudMode ? new Set(state.messages.map((message) => message.id)) : new Set();
+    const loaded = validateState(raw);
+    if (!loaded) return;
+    cloudMode = true;
+    state = loaded;
+    render();
+    if (!options.notify) return;
+    const completed = state.tasks.find((task) => {
+      const before = priorTasks.get(task.id);
+      return before && !isDone(before) && isDone(task) && task.completedBy !== currentPerson;
+    });
+    if (completed) notifyPartner('Nosso Cantinho ♡', `${completed.completedBy || completed.owner} concluiu: ${completed.title} 🎉`);
+    else {
+      const newMessage = state.messages.find((m) => !priorMessages.has(m.id) && m.to === currentPerson && m.author !== currentPerson);
+      if (newMessage) notifyPartner('Um carinho pra você ♡', `${newMessage.author}: ${newMessage.text}`);
+    }
+  }
+  function setLocalMode() {
+    if (!cloudMode) return;
+    cloudMode = false;
+    load();
+    resetForm();
+    render();
+  }
+  function localState() {
+    try {return validateState(JSON.parse(safeRead(STORAGE_KEY)));}
+    catch {return null;}
   }
   function init() {
     try {
@@ -386,6 +447,8 @@
       render();
       if (!storageAvailable) toast('Aviso: este navegador bloqueou o salvamento. Use o GitHub Pages.');
       document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+      window.NossoCantinhoCloud?.start({toast, person: () => currentPerson, choosePerson: setPerson,
+        localState, receiveCloudState, setLocalMode});
       if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
         navigator.serviceWorker.register('./sw.js').catch((error) => console.warn('Offline indisponível:', error));
       }
