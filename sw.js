@@ -1,7 +1,7 @@
 /* Cache offline da versão local; não transfere dados de usuários. */
-const CACHE = 'nosso-cantinho-v4.0.0';
+const CACHE = 'nosso-cantinho-v4.0.1';
 const ASSETS = [
-  './', './index.html', './styles.css', './app.js', './manifest.webmanifest',
+  './', './index.html', './styles.css?v=4.0.1', './app.js?v=4.0.1', './manifest.webmanifest',
   './assets/icon.svg', './assets/icon-192.png', './assets/icon-512.png',
   './assets/cozinha.svg', './assets/banheiro.svg', './assets/roupas.svg',
   './assets/sala.svg', './assets/quarto.svg', './assets/geral.svg'
